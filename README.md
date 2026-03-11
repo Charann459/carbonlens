@@ -179,18 +179,6 @@ Full derivation: [`docs/ALGORITHM.md`](docs/ALGORITHM.md)
 
 ---
 
-## Team — Syntax Squad
-
-| Member | Roll No. | Module |
-|---|---|---|
-| Shaik Jaakeer Basha | 22MIS7182 | Disaggregation Engine |
-| Manideep Sale | 22MIC7072 | Emission Factor DB + SEC Benchmarks |
-| Samhith Kola | 22MIC7010 | FastAPI Backend + API Layer |
-| Sai Charan | 22MIS7157 | React Frontend |
-| Suresh Kumar | 22MIS7070 | PDF + CBAM Export + Docs |
-
----
-
 ## CBAM Compliance Note
 
 Output fields map to EU CBAM declarant portal requirements (definitive phase, Jan 2026).  
