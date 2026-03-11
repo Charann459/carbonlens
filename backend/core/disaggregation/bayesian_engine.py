@@ -1,5 +1,5 @@
 import numpy as np
-from core.emission_factors.factor_db import get_grid_emission_factor, get_material_emission_factor
+from core.emission_factors.factor_db import get_grid_ef, get_material_ef
 
 N_SAMPLES = 1000
 SEC_UNCERTAINTY = 0.15

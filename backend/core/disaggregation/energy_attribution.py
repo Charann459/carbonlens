@@ -1,4 +1,4 @@
-from core.emission_factors.sec_lookup import get_sec_benchmark
+from core.emission_factors.sec_lookup import get_sec
 
 def attribute_energy(total_kwh: float, products: list[dict]) -> list[dict]:
     weights = []
