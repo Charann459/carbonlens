@@ -8,16 +8,20 @@ import UploadForm from './components/UploadForm';
 import ResultCard from './components/ResultCard';
 import ConfidenceChart from './components/ConfidenceChart';
 import ExportPanel from './components/ExportPanel';
+import RecommendationsPanel from './components/RecommendationsPanel';
+import FactorySummary from './components/FactorySummary';
 
 function App() {
   const [currentView, setCurrentView] = useState('landing');
   const [jobId, setJobId] = useState(null);
   const [products, setProducts] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
 
   // Called by UploadForm when backend returns results
-  const handleUploadSuccess = (newJobId, newProducts) => {
+  const handleUploadSuccess = (newJobId, newProducts, newRecs = []) => {
     setJobId(newJobId);
     setProducts(newProducts);
+    setRecommendations(newRecs);
     setCurrentView('results');
   };
 
@@ -106,6 +110,7 @@ function App() {
 
             {products.length > 0 ? (
               <>
+                <FactorySummary products={products} />
                 <ConfidenceChart products={products} />
                 <div>
                   <h3 className="text-2xl font-serif text-white mb-6">Node Breakdown</h3>
@@ -115,6 +120,7 @@ function App() {
                     ))}
                   </div>
                 </div>
+                <RecommendationsPanel recommendations={recommendations} />
               </>
             ) : (
               <div className="text-center py-20 text-zinc-500">

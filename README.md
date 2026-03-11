@@ -1,32 +1,98 @@
 # 🌍 CarbonLens v0.1.0
 
-> AI-Based Carbon Footprint Analyzer for Organizations — Hackathon MVP
-
-CarbonLens uses **LLM-powered document extraction** and **physics-informed Bayesian disaggregation** to generate per-product carbon footprint estimates for manufacturing organizations that lack granular energy data.
+> **AI-Based Carbon Footprint Analyzer** — Energy Conservation Week Hackathon 2026  
+> Solving the data-dark Tier 3 supplier problem for CBAM-compliant supply chains
 
 ---
 
 ## The Problem
 
-Tier 3 manufacturers (forging/casting units in clusters like Rajkot) supply EU OEMs but cannot provide per-product carbon data — not due to negligence, but because they operate with a single electricity bill, bulk material purchases, and zero sub-metering. With EU CBAM now in its definitive phase (Jan 2026), this creates a critical compliance gap for the entire supply chain.
+A forging unit in Rajkot supplies crankshafts to a German OEM. Since January 2026, that OEM legally needs the **embedded carbon per part** for EU CBAM compliance. But the factory has one electricity meter, one material invoice, zero sub-metering.
+
+The data structurally cannot exist — until now.
 
 ## The Solution
 
-Upload your factory's electricity bill, material invoices, and production log. CarbonLens does the rest:
+Upload your factory's electricity bill, material receipt, and production log.  
+CarbonLens disaggregates factory-level totals into **per-product CO₂e estimates** using physics-informed Bayesian inference — no sub-metering, no ESG team required.
 
 ```
-Document Upload (PDF/CSV)
+PDF / CSV / TXT Upload
         ↓
-LLM Extraction (Claude API)
+LLM Extraction  (Groq llama-3.3-70b — unstructured → structured JSON)
         ↓
-Disaggregation Engine (Bayesian)
+Energy Attribution  (BEE India SEC benchmarks, proportional allocation)
         ↓
-Emission Factor DB (BEE/IPCC benchmarks)
+Material Attribution  (yield coefficients, conservation-constrained)
         ↓
-Per-product CO₂e + Confidence Range
+Bayesian Monte Carlo  (N=1000, ±15% SEC uncertainty → P5/P50/P95)
         ↓
-PDF Report + CBAM JSON Export + UI Visualization
+Per-product CO₂e + Confidence Interval + Scope 1/2 Split
+        ↓
+PDF Report  |  CBAM-v1.0 JSON  |  Reduction Recommendations
 ```
+
+---
+
+## Live Demo
+
+```bash
+git clone https://github.com/Medinz01/carbonlens.git
+cd carbonlens
+cp .env.example .env          # add your GROQ_API_KEY
+docker compose up --build
+```
+
+- Frontend: http://localhost:5173  
+- Backend API: http://localhost:8000  
+- Health check: http://localhost:8000/health/llm
+
+**No upload needed to try it** — click **⚡ Try Demo** on the upload page to run the built-in Rajkot forging unit scenario instantly.
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---|---|
+| **LLM Extraction** | Groq llama-3.3-70b parses unstructured factory docs — electricity bills, production logs, material receipts |
+| **Bayesian Disaggregation** | Physics-constrained Monte Carlo allocates factory totals to product lines |
+| **Scope 1 / Scope 2 Split** | Per-product breakdown of material vs grid electricity emissions |
+| **Confidence Intervals** | P5–P95 range on every estimate — honest uncertainty, not fake precision |
+| **CBAM JSON Export** | Schema-compliant export with HS codes, embedded emissions, intensity, methodology reference |
+| **PDF Report** | Audit-ready report with full verification formulas — every number reproducible by hand |
+| **Reduction Recommendations** | Solar, green tariff, yield improvement, hotspot audit — sorted by CO₂e saving potential |
+| **Grid Region Selector** | 14 regions: India national/regional/state + China provincial grid EFs |
+| **HS Code Auto-Suggest** | Keyword fallback for 25 common MSME part types when LLM extraction misses it |
+| **Try Demo Button** | One-click demo with hardcoded Rajkot factory — works even if Groq is down |
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/analyze/upload` | Upload PDF/CSV/TXT, returns job with products + recommendations |
+| `POST` | `/analyze` | Structured JSON input |
+| `GET` | `/demo` | Run built-in Rajkot demo — no upload needed |
+| `GET` | `/jobs/{job_id}` | Poll job results |
+| `GET` | `/export/cbam/{job_id}` | Download CBAM-v1.0 JSON |
+| `GET` | `/export/pdf/{job_id}` | Download PDF report |
+| `GET` | `/health/llm` | Groq connectivity check |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React + Recharts + TailwindCSS + Vite |
+| Backend | Python 3.12 + FastAPI |
+| LLM | Groq API — `llama-3.3-70b-versatile` (free tier) |
+| PDF | ReportLab |
+| Disaggregation | NumPy — Bayesian Monte Carlo |
+| Data | BEE India SEC benchmarks, CEA grid factors, IPCC/World Steel material EFs |
+| Deployment | Docker Compose (2 containers: backend + frontend) |
 
 ---
 
@@ -35,92 +101,102 @@ PDF Report + CBAM JSON Export + UI Visualization
 ```
 carbonlens/
 ├── backend/
-│   ├── main.py                          # FastAPI app entry point
-│   ├── requirements.txt
 │   ├── api/
-│   │   ├── routes.py                    # API endpoints
-│   │   └── schemas.py                   # Request/response schemas
+│   │   ├── routes.py                    # All API endpoints + job store
+│   │   └── schemas.py                   # Pydantic schemas
 │   ├── core/
 │   │   ├── extraction/
-│   │   │   ├── llm_parser.py            # LLM document extraction (Claude API)
-│   │   │   └── document_handler.py      # File handling, preprocessing
+│   │   │   ├── llm_parser.py            # Groq API extraction
+│   │   │   └── document_handler.py      # PDF/CSV/TXT handling
 │   │   ├── disaggregation/
-│   │   │   ├── energy_attribution.py    # Energy allocation per product line
-│   │   │   ├── material_attribution.py  # Material/yield disaggregation
-│   │   │   └── bayesian_engine.py       # Bayesian fusion + uncertainty quant
-│   │   └── emission_factors/
-│   │       ├── sec_lookup.py            # SEC benchmark lookup by process+material
-│   │       └── factor_db.py             # Emission factor database interface
-│   ├── models/
-│   │   ├── factory_input.py             # Pydantic input models
-│   │   └── carbon_output.py             # Pydantic output models
-│   ├── utils/
-│   │   ├── pdf_generator.py             # PDF report generation
-│   │   └── cbam_export.py               # CBAM-formatted JSON export
-│   └── tests/
-│       ├── test_disaggregation.py
-│       └── test_extraction.py
-├── frontend/
-│   └── src/
-│       ├── components/
-│       │   ├── UploadForm.jsx           # Document upload interface
-│       │   ├── ResultCard.jsx           # Per-product result display
-│       │   ├── ConfidenceChart.jsx      # Confidence interval visualization
-│       │   └── ExportPanel.jsx          # PDF + CBAM export buttons
-│       ├── pages/
-│       │   ├── Home.jsx
-│       │   └── Results.jsx
-│       └── utils/
-│           └── api.js                   # Backend API calls
+│   │   │   ├── energy_attribution.py    # SEC-weighted energy allocation
+│   │   │   ├── material_attribution.py  # Yield-based material allocation
+│   │   │   └── bayesian_engine.py       # Monte Carlo fusion + confidence
+│   │   ├── emission_factors/
+│   │   │   ├── sec_lookup.py            # BEE SEC benchmarks
+│   │   │   └── factor_db.py             # Grid + material emission factors
+│   │   ├── recommendations.py           # Reduction pathway engine
+│   │   └── hs_lookup.py                 # HS code keyword fallback
+│   └── utils/
+│       ├── pdf_generator.py             # PDF with formulas + worked examples
+│       └── cbam_export.py               # CBAM schema helper
+├── frontend/src/
+│   ├── components/
+│   │   ├── UploadForm.jsx               # Upload + Try Demo + grid selector
+│   │   ├── ResultCard.jsx               # Per-product card + scope split + tooltip
+│   │   ├── FactorySummary.jsx           # Factory total + hotspot card
+│   │   ├── ConfidenceChart.jsx          # Recharts bar chart with error bars
+│   │   ├── RecommendationsPanel.jsx     # Reduction pathways, collapsible
+│   │   └── ExportPanel.jsx              # PDF + CBAM download buttons
+│   └── utils/api.js                     # All backend calls
 ├── data/
-│   ├── sec_benchmarks/
-│   │   ├── forging.json                 # BEE SEC benchmarks - forging
-│   │   ├── casting.json                 # BEE SEC benchmarks - casting
-│   │   └── stamping.json                # BEE SEC benchmarks - stamping
-│   └── sample_inputs/
-│       └── sample_factory_input.json
+│   ├── sec_benchmarks/                  # BEE India JSON benchmarks
+│   └── sample_inputs/                   # Test factory data
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── ALGORITHM.md
-│   ├── CBAM_SCHEMA.md
-│   └── DESIGN.md
+│   ├── ALGORITHM.md                     # Full disaggregation algorithm
+│   ├── ARCHITECTURE.md                  # System design
+│   ├── CBAM_SCHEMA.md                   # CBAM field reference
+│   └── DESIGN.md                        # Design decisions + assumptions
 ├── .env.example
-├── .gitignore
 └── docker-compose.yml
 ```
 
 ---
 
-## Quickstart
+## Environment Variables
 
-```bash
-git clone https://github.com/your-org/carbonlens.git
-cd carbonlens
-
-# Backend
-cd backend
-pip install -r requirements.txt
-cp ../.env.example ../.env
-uvicorn main:app --reload
-
-# Frontend
-cd ../frontend
-npm install
-npm run dev
+```env
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx     # From console.groq.com (free)
+GROQ_MODEL=llama-3.3-70b-versatile
+DEFAULT_GRID_REGION=india_national
+DEBUG=true
 ```
 
 ---
 
-## Team Roles (v0.1.0)
+## Algorithm Summary
 
-| Member | Module |
-|--------|--------|
-| Member 1 | Disaggregation Engine |
-| Member 2 | Emission Factor DB + SEC Benchmarks |
-| Member 3 | FastAPI Backend + API Layer |
-| Member 4 | React Frontend |
-| Member 5 | PDF + CBAM Export + Docs |
+**Step 1 — Extract:** LLM parses document → `{total_kwh, materials, products[]}`  
+**Step 2 — Energy weight:** `w_i = SEC_i × Q_i × unit_weight_i`  
+**Step 3 — Allocate:** `kWh_i = total_kWh × (w_i / Σw_j)`  
+**Step 4 — Material:** `mat_i = unit_weight_i / yield` (scaled to factory total)  
+**Step 5 — Monte Carlo:** `SEC ~ Normal(μ, σ=0.15μ)`, N=1000 draws → P5/P50/P95  
+**Step 6 — Emit:** `CO₂e = kWh × 0.716 + mat × 0.43` (India grid + scrap steel)
+
+Full derivation: [`docs/ALGORITHM.md`](docs/ALGORITHM.md)
 
 ---
 
-`v0.1.0` — Hackathon MVP · Energy Conservation Week 2026
+## Emission Factors Used
+
+| Parameter | Value | Source |
+|---|---|---|
+| India national grid | 0.716 kgCO₂e/kWh | CEA India 2023 |
+| Mild steel (scrap) | 0.43 kgCO₂e/kg | IPCC AR6 / World Steel 2023 |
+| Mild steel (primary) | 1.85 kgCO₂e/kg | IPCC AR6 / World Steel 2023 |
+| Forging yield | 85% | BEE India SME cluster report |
+| SEC uncertainty | ±15% | BEE variance data |
+
+---
+
+## Team — Syntax Squad
+
+| Member | Roll No. | Module |
+|---|---|---|
+| Shaik Jaakeer Basha | 22MIS7182 | Disaggregation Engine |
+| Manideep Sale | 22MIC7072 | Emission Factor DB + SEC Benchmarks |
+| Samhith Kola | 22MIC7010 | FastAPI Backend + API Layer |
+| Sai Charan | 22MIS7157 | React Frontend |
+| Suresh Kumar | 22MIS7070 | PDF + CBAM Export + Docs |
+
+---
+
+## CBAM Compliance Note
+
+Output fields map to EU CBAM declarant portal requirements (definitive phase, Jan 2026).  
+Calculation method declared as `physics_informed_bayesian_disaggregation` — qualifies under Article 4(3) estimated method provision.  
+Carbon price paid: EUR 0 (India has no national ETS as of 2026).
+
+---
+
+`v0.1.0` — Hackathon MVP · Energy Conservation Week 2026 · Syntax Squad

@@ -8,9 +8,10 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
  * @param {File[]} files — array of File objects
  * @returns {Promise<{job_id, status, products}>}
  */
-export async function uploadAndAnalyze(files) {
+export async function uploadAndAnalyze(files, gridRegion = 'india_national') {
   const formData = new FormData();
   files.forEach(file => formData.append('files', file));
+  formData.append('grid_region', gridRegion);
 
   const res = await fetch(`${BASE_URL}/analyze/upload`, {
     method: 'POST',
@@ -70,4 +71,17 @@ export async function downloadPDF(jobId) {
   a.download = `carbonlens_${jobId.slice(0, 8)}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Run the built-in demo (Rajkot forging unit, Feb 2026) — no file upload needed.
+ * @returns {Promise<{job_id, status, products, recommendations}>}
+ */
+export async function runDemo() {
+  const res = await fetch(`${BASE_URL}/demo`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `Demo failed (${res.status})`);
+  }
+  return res.json();
 }

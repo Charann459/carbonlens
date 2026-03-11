@@ -55,9 +55,11 @@ Use null for any field you cannot find.
   "products": [
     {{
       "description": "<product name>",
+      "hs_code": "<6-digit HS/CN code as string, or empty string if not found>",
       "quantity_units": <number or null>,
       "unit_weight_kg": <number or null>,
-      "process_hint": "<forging|casting|stamping|machining|unknown>"
+      "process_hint": "<forging|casting|stamping|machining|unknown>",
+      "material": "<mild_steel|alloy_steel|aluminium|cast_iron|unknown>"
     }}
   ],
   "extraction_confidence": "<high|medium|low>",

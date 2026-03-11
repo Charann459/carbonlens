@@ -22,11 +22,12 @@ def _run_pipeline(factory_data: dict) -> dict:
     total_material_kg = sum(
         m.get("quantity_kg") or 0 for m in factory_data.get("materials", [])
     )
+    grid_region = factory_data.get("grid_region", "india_national")
 
     energy_results = attribute_energy(total_kwh, products)
     material_results = attribute_material(total_material_kg, products)
     carbon_results = compute_carbon_estimates(
-        energy_results, material_results, total_kwh
+        energy_results, material_results, total_kwh, grid_zone=grid_region
     )
     return {
         "products": carbon_results,
@@ -41,6 +42,9 @@ async def analyze(request: AnalyzeRequest):
     job_id = str(uuid.uuid4())
     try:
         result = _run_pipeline(request.dict())
+        from core.recommendations import generate_recommendations
+        total_kwh = request.dict().get("energy", {}).get("total_kwh") or 0
+        result["recommendations"] = generate_recommendations(result["products"], total_kwh)
         JOB_STORE[job_id] = {"status": "complete", "result": result}
         return {"job_id": job_id, "status": "complete", **result}
     except Exception as e:
@@ -50,7 +54,7 @@ async def analyze(request: AnalyzeRequest):
 
 # ── POST /analyze/upload — PDF/CSV document upload ───────────────────────────
 @router.post("/analyze/upload")
-async def analyze_upload(files: list[UploadFile] = File(...)):
+async def analyze_upload(files: list[UploadFile] = File(...), grid_region: str = "india_national"):
     from core.extraction.document_handler import handle_upload, merge_extractions
 
     job_id = str(uuid.uuid4())
@@ -63,6 +67,7 @@ async def analyze_upload(files: list[UploadFile] = File(...)):
             extractions.append(extracted)
 
         factory_data = merge_extractions(extractions) if extractions else {}
+        factory_data["grid_region"] = grid_region
 
         # Normalise product fields — fill in missing keys required by pipeline
         for i, product in enumerate(factory_data.get("products", [])):
@@ -81,8 +86,19 @@ async def analyze_upload(files: list[UploadFile] = File(...)):
             # quantity_units
             if "quantity_units" not in product or not product["quantity_units"]:
                 product["quantity_units"] = 1
+            # hs_code — auto-suggest if LLM didn't extract one
+            if not product.get("hs_code"):
+                from core.hs_lookup import suggest_hs_code
+                product["hs_code"] = suggest_hs_code(product.get("description", ""))
 
         result = _run_pipeline(factory_data)
+
+        # Generate reduction recommendations
+        from core.recommendations import generate_recommendations
+        total_kwh = factory_data.get("energy", {}).get("total_kwh") or 0
+        recommendations = generate_recommendations(result["products"], total_kwh)
+        result["recommendations"] = recommendations
+
         JOB_STORE[job_id] = {"status": "complete", "result": result, "extracted": factory_data}
         return {"job_id": job_id, "status": "complete", **result}
 
@@ -110,6 +126,7 @@ async def export_cbam(job_id: str):
     products = job["result"]["products"]
     cbam_payload = {
         "schema_version": "CBAM-v1.0",
+        "carbonlens_version": "0.1.0",
         "job_id": job_id,
         "goods": [
             {
@@ -122,7 +139,9 @@ async def export_cbam(job_id: str):
                 "emissions_min_tco2e": round(p["co2e_min"] / 1000, 4),
                 "emissions_max_tco2e": round(p["co2e_max"] / 1000, 4),
                 "confidence_pct": p.get("confidence_pct", 0),
+                "emissions_scope": "direct",
                 "calculation_method": p.get("methodology", "physics_informed_bayesian_disaggregation"),
+                "methodology_reference": "CarbonLens v0.1.0 — docs/ALGORITHM.md",
                 "carbon_price_paid_eur": 0,
             }
             for p in products
@@ -152,3 +171,34 @@ async def export_pdf(job_id: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+
+# ── GET /demo — run sample Rajkot factory data, no upload required ────────────
+@router.get("/demo")
+async def run_demo():
+    """Runs the built-in sample factory (Rajkot forging unit, Feb 2026)."""
+    demo_data = {
+        "grid_region": "gujarat",
+        "energy": {"total_kwh": 48000},
+        "materials": [{"type": "mild_steel_billet", "quantity_kg": 42000, "assumed_scrap_based": True}],
+        "products": [
+            {"id": "P001", "description": "Crankshaft blank",  "hs_code": "8483.10",
+             "process": "forging", "material": "mild_steel", "quantity_units": 1200, "unit_weight_kg": 4.2},
+            {"id": "P002", "description": "Suspension arm",    "hs_code": "8708.80",
+             "process": "forging", "material": "mild_steel", "quantity_units": 800,  "unit_weight_kg": 6.8},
+            {"id": "P003", "description": "Brake bracket",     "hs_code": "8708.40",
+             "process": "forging", "material": "mild_steel", "quantity_units": 2100, "unit_weight_kg": 1.9},
+            {"id": "P004", "description": "Hub carrier blank", "hs_code": "8708.50",
+             "process": "forging", "material": "mild_steel", "quantity_units": 450,  "unit_weight_kg": 8.5},
+        ]
+    }
+    job_id = str(uuid.uuid4())
+    JOB_STORE[job_id] = {"status": "processing"}
+    try:
+        result = _run_pipeline(demo_data)
+        from core.recommendations import generate_recommendations
+        result["recommendations"] = generate_recommendations(result["products"], 48000)
+        JOB_STORE[job_id] = {"status": "complete", "result": result}
+        return {"job_id": job_id, "status": "complete", "is_demo": True, **result}
+    except Exception as e:
+        JOB_STORE[job_id] = {"status": "error", "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
